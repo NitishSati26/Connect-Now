@@ -1,5 +1,33 @@
+# Node modules
 node_modules/
+
+# Environment variables
 .env
-uploads/
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 *.log
-.DS_Store 
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Uploads or file storage
+uploads/
+
+# Optional: Ignore build output (if applicable)
+dist/
+build/
+
+# Optional: Ignore IDE/editor settings
+.vscode/
+.idea/
+*.swp
+
+# Optional: Ignore coverage reports
+coverage/
