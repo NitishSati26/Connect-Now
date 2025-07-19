@@ -76,6 +76,11 @@ export const useAuthStore = create((set, get) => ({
     try {
       const res = await axiosInstance.put("/auth/update-profile", data);
       set({ authUser: res.data });
+
+      // Refresh users list to update profile images in sidebar
+      const { useChatStore } = await import("./useChatStore");
+      useChatStore.getState().getUsers();
+
       toast.success("Profile updated successfully");
     } catch (error) {
       console.log("Error in Update Profile");
@@ -94,13 +99,46 @@ export const useAuthStore = create((set, get) => ({
         userId: authUser._id,
       },
     });
-    socket.connect();
 
+    socket.connect();
     set({ socket: socket });
 
     socket.on("getOnlineUsers", (userIds) => {
       set({ onlineUsers: userIds });
     });
+
+    // Listen for real-time profile updates
+    socket.on("profileUpdated", async (data) => {
+      console.log("Profile updated in real-time:", data);
+
+      // Update the current user's profile if it's their own update
+      if (data.userId === authUser._id) {
+        set({
+          authUser: {
+            ...authUser,
+            profilePic: data.profilePic,
+            updatedAt: data.updatedAt,
+          },
+        });
+      }
+
+      // Update the specific user in the chat store for real-time updates
+      const { useChatStore } = await import("./useChatStore");
+      useChatStore.getState().updateUserProfile(data.userId, data);
+    });
+
+    // Subscribe to global group events for real-time group updates
+    import("./useGroupStore").then(({ useGroupStore }) => {
+      useGroupStore.getState().subscribeToGlobalGroupEvents();
+    });
+
+    // Subscribe to global message events for real-time user list updates
+    import("./useChatStore").then(({ useChatStore }) => {
+      useChatStore.getState().subscribeToGlobalMessages();
+    });
+
+    // Join user to all their group rooms
+    socket.emit("joinGroups", authUser._id);
   },
 
   disconnectSocket: () => {

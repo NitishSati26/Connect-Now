@@ -2,6 +2,7 @@ import User from "../models/user.model.js";
 import { generateToken } from "../lib/utils.js";
 import bcrypt from "bcryptjs";
 import cloudinary from "../lib/cloudinary.js";
+import { io } from "../lib/socket.js";
 
 export const signup = async (req, res) => {
   const { fullName, email, password } = req.body;
@@ -129,6 +130,13 @@ export const updateProfile = async (req, res) => {
       },
       { new: true }
     );
+
+    // Emit real-time profile update to all connected users
+    io.emit("profileUpdated", {
+      userId: updatedUser._id,
+      profilePic: updatedUser.profilePic,
+      updatedAt: updatedUser.updatedAt,
+    });
 
     res.status(200).json(updatedUser);
   } catch (error) {

@@ -1,41 +1,39 @@
+// models/groupMessage.model.js
 import mongoose from "mongoose";
 
-const messageSchema = new mongoose.Schema(
+const groupMessageSchema = new mongoose.Schema(
   {
+    groupId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Group",
+      required: true,
+    },
+
     senderId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
-    receiverId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
+
     text: {
       type: String,
-      default: "",
     },
+
     image: {
       type: String,
-      default: "",
     },
+
     document: {
       type: String,
-      default: "",
     },
+
     documentName: {
       type: String,
-      default: "",
-    },
-    isRead: {
-      type: Boolean,
-      default: false,
     },
   },
   { timestamps: true }
 );
 
-const Message = mongoose.model("Message", messageSchema);
+const GroupMessage = mongoose.model("GroupMessage", groupMessageSchema);
 
-export default Message;
+export default GroupMessage;
