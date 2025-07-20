@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useGroupStore } from "../../store/useGroupStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useThemeStore } from "../../store/useThemeStore";
+import { useChatStore } from "../../store/useChatStore";
 import { formatDistanceToNow } from "date-fns";
 import GroupInfoModal from "../GroupInfoModal";
 import {
@@ -16,6 +17,8 @@ import {
 } from "lucide-react";
 import { useSpeechRecognition } from "../../hooks/useSpeechRecognition";
 import toast from "react-hot-toast";
+import { useTypingIndicator } from "../../hooks/useTypingIndicator";
+import TypingIndicator from "../TypingIndicator";
 
 const GroupChatContainer = () => {
   const {
@@ -26,6 +29,7 @@ const GroupChatContainer = () => {
     sendGroupMessage,
     subscribeToGroupMessages,
     unsubscribeFromGroupMessages,
+    setSelectedGroup,
   } = useGroupStore();
 
   const { authUser } = useAuthStore();
@@ -38,6 +42,10 @@ const GroupChatContainer = () => {
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const docInputRef = useRef(null);
+
+  // Typing indicator hook
+  const { typingUsers, sendTypingIndicator, sendStopTypingIndicator } =
+    useTypingIndicator("group", selectedGroup?._id, authUser?._id);
 
   // Voice to text
   const { isListening, startListening, stopListening } = useSpeechRecognition(
@@ -58,8 +66,33 @@ const GroupChatContainer = () => {
   }, [selectedGroup]);
 
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [groupMessages]);
+    if (scrollRef.current && (groupMessages || typingUsers.length > 0)) {
+      // Use setTimeout to ensure DOM is updated
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollIntoView({
+            behavior: "smooth",
+            block: "end",
+          });
+        }
+      }, 100);
+    }
+  }, [groupMessages, typingUsers]);
+
+  // Scroll to bottom when group chat is first opened
+  useEffect(() => {
+    if (selectedGroup && scrollRef.current) {
+      // Use a longer timeout for initial load to ensure messages are rendered
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollIntoView({
+            behavior: "smooth",
+            block: "end",
+          });
+        }
+      }, 200);
+    }
+  }, [selectedGroup]);
 
   const handleFileSelect = (type) => {
     setShowFileMenu(false);
@@ -219,14 +252,30 @@ const GroupChatContainer = () => {
             </div>
           </div>
 
-          {/* Group Info button */}
-          <button
-            className="btn btn-circle btn-ghost btn-sm"
-            onClick={() => setShowGroupInfo(true)}
-            title="Group Info"
-          >
-            <Info size={20} />
-          </button>
+          {/* Group Info and Close buttons */}
+          <div className="flex items-center gap-2">
+            <button
+              className="btn btn-circle btn-ghost btn-sm"
+              onClick={() => setShowGroupInfo(true)}
+              title="Group Info"
+            >
+              <Info size={20} />
+            </button>
+
+            {/* Close button */}
+            <button
+              className="btn btn-circle btn-ghost btn-sm"
+              onClick={() => {
+                setSelectedGroup(null);
+                // Also clear selected user to be consistent with sidebar behavior
+                const { setSelectedUser } = useChatStore.getState();
+                setSelectedUser(null);
+              }}
+              title="Close Chat"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -265,7 +314,6 @@ const GroupChatContainer = () => {
               <div
                 key={msg._id}
                 className={`chat ${isCurrentUser ? "chat-end" : "chat-start"}`}
-                ref={scrollRef}
               >
                 <div className={getBubbleClasses(isCurrentUser)}>
                   {/* Sender name at the top of bubble - only show if different sender */}
@@ -352,6 +400,12 @@ const GroupChatContainer = () => {
             );
           })
         )}
+
+        {/* Typing Indicator */}
+        <TypingIndicator typingUsers={typingUsers} />
+
+        {/* Auto-scroll target */}
+        <div ref={scrollRef} />
       </div>
 
       {/* File Upload Inputs */}
@@ -410,12 +464,22 @@ const GroupChatContainer = () => {
                 isSending ? "Sending..." : "Type a message or use mic..."
               }
               value={messageText}
-              onChange={(e) => setMessageText(e.target.value)}
+              onChange={(e) => {
+                setMessageText(e.target.value);
+                // Send typing indicator
+                if (e.target.value.trim() && selectedGroup) {
+                  sendTypingIndicator(authUser.fullName);
+                }
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey && !isSending) {
                   e.preventDefault();
+                  sendStopTypingIndicator();
                   handleSendMessage(e);
                 }
+              }}
+              onBlur={() => {
+                sendStopTypingIndicator();
               }}
               disabled={isSending}
             />

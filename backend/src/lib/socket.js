@@ -52,6 +52,36 @@ io.on("connection", (socket) => {
   });
 
   // ==========================
+  // ⌨️ TYPING INDICATORS
+  // ==========================
+
+  // Private chat typing indicator
+  socket.on("typing", ({ receiverId, senderId, senderName }) => {
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("userTyping", { senderId, senderName });
+    }
+  });
+
+  // Stop typing indicator for private chat
+  socket.on("stopTyping", ({ receiverId, senderId }) => {
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("userStopTyping", { senderId });
+    }
+  });
+
+  // Group chat typing indicator
+  socket.on("groupTyping", ({ groupId, senderId, senderName }) => {
+    socket.to(groupId).emit("groupUserTyping", { senderId, senderName });
+  });
+
+  // Stop typing indicator for group chat
+  socket.on("groupStopTyping", ({ groupId, senderId }) => {
+    socket.to(groupId).emit("groupUserStopTyping", { senderId });
+  });
+
+  // ==========================
   // 🔴 Disconnect
   // ==========================
   socket.on("disconnect", () => {

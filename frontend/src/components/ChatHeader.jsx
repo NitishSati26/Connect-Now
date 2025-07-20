@@ -1,10 +1,12 @@
 import { X } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
+import { useGroupStore } from "../store/useGroupStore";
 
 const ChatHeader = () => {
   const { selectedUser, setSelectedUser } = useChatStore();
   const { onlineUsers } = useAuthStore();
+  const { setSelectedGroup } = useGroupStore();
 
   return (
     <div className="p-2.5 border-b border-base-300">
@@ -13,10 +15,17 @@ const ChatHeader = () => {
           {/* Avatar */}
           <div className="avatar">
             <div className="size-10 rounded-full relative">
-              <img
-                src={selectedUser.profilePic || "/avatar.png"}
-                alt={selectedUser.fullName}
-              />
+              {selectedUser?.profilePic ? (
+                <img
+                  src={selectedUser.profilePic}
+                  alt={selectedUser.fullName}
+                  className="object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-zinc-600 text-white rounded-full flex items-center justify-center text-lg font-semibold">
+                  {selectedUser?.fullName?.[0]}
+                </div>
+              )}
             </div>
           </div>
 
@@ -30,8 +39,16 @@ const ChatHeader = () => {
         </div>
 
         {/* Close button */}
-        <button onClick={() => setSelectedUser(null)}>
-          <X />
+        <button
+          className="btn btn-circle btn-ghost btn-sm"
+          onClick={() => {
+            setSelectedUser(null);
+            // Also clear selected group to be consistent with sidebar behavior
+            setSelectedGroup(null);
+          }}
+          title="Close Chat"
+        >
+          <X size={20} />
         </button>
       </div>
     </div>

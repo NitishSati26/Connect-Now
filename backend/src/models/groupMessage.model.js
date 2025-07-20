@@ -30,6 +30,19 @@ const groupMessageSchema = new mongoose.Schema(
     documentName: {
       type: String,
     },
+
+    readBy: [
+      {
+        userId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        readAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
   },
   { timestamps: true }
 );

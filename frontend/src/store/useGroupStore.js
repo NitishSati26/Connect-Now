@@ -41,11 +41,51 @@ export const useGroupStore = create((set, get) => ({
     });
   },
 
+  updateGroupUnreadCount: (groupId, increment = 1) => {
+    console.log(
+      "Updating group unread count for:",
+      groupId,
+      "increment:",
+      increment
+    );
+    set((state) => {
+      const updatedGroups = state.groups.map((group) => {
+        if (group._id === groupId) {
+          const newCount = (group.unreadCount || 0) + increment;
+          console.log(
+            `Group ${group.name}: ${group.unreadCount || 0} -> ${newCount}`
+          );
+          return { ...group, unreadCount: newCount };
+        }
+        return group;
+      });
+      return { groups: updatedGroups };
+    });
+  },
+
+  markGroupMessagesAsRead: async (groupId) => {
+    try {
+      await axiosInstance.put(`/groups/read/${groupId}`);
+
+      // Update unread count for this group immediately
+      set((state) => ({
+        groups: state.groups.map((group) =>
+          group._id === groupId ? { ...group, unreadCount: 0 } : group
+        ),
+      }));
+    } catch (error) {
+      console.error("Error marking group messages as read:", error);
+    }
+  },
+
   getGroupMessages: async (groupId) => {
     set({ isGroupMessagesLoading: true });
     try {
       const res = await axiosInstance.get(`/groups/messages/${groupId}`);
       set({ groupMessages: res.data });
+
+      // Mark group messages as read when opening conversation
+      await get().markGroupMessagesAsRead(groupId);
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to fetch messages");
     } finally {
@@ -124,7 +164,7 @@ export const useGroupStore = create((set, get) => ({
             : state.selectedGroup;
         return { groups: updatedGroups, selectedGroup };
       });
-      toast.success("Member added!");
+      // Notification handled by socket event to avoid duplicates
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to add member");
     }
@@ -145,7 +185,7 @@ export const useGroupStore = create((set, get) => ({
             : state.selectedGroup;
         return { groups: updatedGroups, selectedGroup };
       });
-      toast.success("Member removed!");
+      // Notification handled by socket event to avoid duplicates
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to remove member");
     }
@@ -159,8 +199,16 @@ export const useGroupStore = create((set, get) => ({
     // Listen for new group messages
     socket.on("newGroupMessage", (newMessage) => {
       if (newMessage.groupId !== selectedGroup._id) return;
+
+      // Avoid duplicate messages
+      const currentState = get();
+      const messageExists = currentState.groupMessages.some(
+        (msg) => msg._id === newMessage._id
+      );
+      if (messageExists) return;
+
       set({
-        groupMessages: [...get().groupMessages, newMessage],
+        groupMessages: [...currentState.groupMessages, newMessage],
       });
 
       // Move group to top of list when receiving message
@@ -186,7 +234,7 @@ export const useGroupStore = create((set, get) => ({
         };
       });
 
-      toast.success(`New member added to ${data.group.name}!`);
+      // Notification handled by global subscription to avoid duplicates
     });
 
     // Listen for member removals
@@ -208,7 +256,7 @@ export const useGroupStore = create((set, get) => ({
         };
       });
 
-      toast.success(`Member removed from ${data.group.name}!`);
+      // Notification handled by global subscription to avoid duplicates
     });
 
     // Listen for group info updates
@@ -230,7 +278,7 @@ export const useGroupStore = create((set, get) => ({
         };
       });
 
-      toast.success(`${data.group.name} updated!`);
+      // Notification handled by global subscription to avoid duplicates
     });
   },
 
@@ -262,6 +310,8 @@ export const useGroupStore = create((set, get) => ({
 
     // Listen for member additions to any group (for users not currently viewing that group)
     socket.on("groupMemberAdded", (data) => {
+      console.log("groupMemberAdded event received:", data);
+
       set((state) => {
         const updatedGroups = state.groups.map((g) =>
           g._id === data.groupId ? data.group : g
@@ -284,13 +334,23 @@ export const useGroupStore = create((set, get) => ({
       const groupExisted = currentState.groups.some(
         (g) => g._id === data.groupId
       );
+      console.log("Group existed check:", {
+        groupExisted,
+        groupId: data.groupId,
+      });
       if (groupExisted) {
+        console.log(
+          "Showing member addition notification for:",
+          data.group.name
+        );
         toast.success(`New member added to ${data.group.name}!`);
       }
     });
 
     // Listen for member removals from any group
     socket.on("groupMemberRemoved", (data) => {
+      console.log("groupMemberRemoved event received:", data);
+
       set((state) => {
         const updatedGroups = state.groups.map((g) =>
           g._id === data.groupId ? data.group : g
@@ -306,6 +366,10 @@ export const useGroupStore = create((set, get) => ({
           selectedGroup: updatedSelectedGroup,
         };
       });
+
+      // Show notification for member removal
+      console.log("Showing member removal notification for:", data.group.name);
+      toast.success(`Member removed from ${data.group.name}!`);
     });
 
     // Listen for group info updates to any group
@@ -325,6 +389,50 @@ export const useGroupStore = create((set, get) => ({
           selectedGroup: updatedSelectedGroup,
         };
       });
+
+      // Show notification for group info updates
+      toast.success(`${data.group.name} updated!`);
+    });
+
+    // Listen for new group messages for unread counts
+    socket.on("newGroupMessage", (newMessage) => {
+      console.log("Global newGroupMessage received:", newMessage);
+      const currentState = get();
+      const { selectedGroup } = currentState;
+      const authUser = useAuthStore.getState().authUser;
+
+      const isFromCurrentUser = newMessage.senderId === authUser._id;
+      const isCurrentlyViewing =
+        selectedGroup && selectedGroup._id === newMessage.groupId;
+
+      console.log("Group message conditions:", {
+        isFromCurrentUser,
+        isCurrentlyViewing,
+        senderId: newMessage.senderId,
+        groupId: newMessage.groupId,
+        authUserId: authUser._id,
+        selectedGroupId: selectedGroup?._id,
+      });
+
+      // Move group to top of list when receiving any message
+      get().updateGroupOrder(newMessage.groupId);
+
+      // Only increment unread count if:
+      // 1. Not from current user
+      // 2. Not currently viewing this group
+      if (!isFromCurrentUser && !isCurrentlyViewing) {
+        console.log("Incrementing group unread count for:", newMessage.groupId);
+        get().updateGroupUnreadCount(newMessage.groupId);
+      }
+    });
+
+    // Listen for group messages marked as read
+    socket.on("groupMessagesMarkedAsRead", ({ groupId }) => {
+      set((state) => ({
+        groups: state.groups.map((group) =>
+          group._id === groupId ? { ...group, unreadCount: 0 } : group
+        ),
+      }));
     });
   },
 
@@ -346,6 +454,8 @@ export const useGroupStore = create((set, get) => ({
     socket.off("groupMemberAdded");
     socket.off("groupMemberRemoved");
     socket.off("groupInfoUpdated");
+    socket.off("newGroupMessage");
+    socket.off("groupMessagesMarkedAsRead");
 
     set({ isGlobalEventsSubscribed: false });
   },

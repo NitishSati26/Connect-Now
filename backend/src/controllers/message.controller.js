@@ -162,8 +162,11 @@ export const sendMessages = async (req, res) => {
       io.to(receiverSocketId).emit("newMessage", newMessage);
     }
 
-    // Emit to all connected users for global updates (unread counts, user ordering)
-    io.emit("newMessage", newMessage);
+    // Emit to sender for immediate UI update
+    const senderSocketId = getReceiverSocketId(senderId);
+    if (senderSocketId) {
+      io.to(senderSocketId).emit("newMessage", newMessage);
+    }
 
     res.status(200).json(newMessage);
   } catch (error) {
@@ -189,6 +192,12 @@ export const markMessagesAsRead = async (req, res) => {
         isRead: true,
       }
     );
+
+    // Emit real-time update to mark unread count as 0
+    const mySocketId = getReceiverSocketId(myId);
+    if (mySocketId) {
+      io.to(mySocketId).emit("messagesMarkedAsRead", { userId });
+    }
 
     res.status(200).json({ message: "Messages marked as read" });
   } catch (error) {

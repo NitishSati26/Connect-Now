@@ -233,7 +233,7 @@ const Sidebar = () => {
                       }`}
                     >
                       {/* Group Avatar */}
-                      <div className="flex-shrink-0">
+                      <div className="relative flex-shrink-0">
                         {group.groupPic ? (
                           <img
                             src={
@@ -248,6 +248,13 @@ const Sidebar = () => {
                         ) : (
                           <div className="size-12 bg-gradient-to-br from-primary to-primary-focus text-primary-content rounded-full flex items-center justify-center text-xl font-bold border-2 border-base-300 group-hover:border-primary/30 transition-colors duration-200">
                             {group.name[0].toUpperCase()}
+                          </div>
+                        )}
+
+                        {/* Unread Badge */}
+                        {group.unreadCount > 0 && (
+                          <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 font-medium shadow-sm">
+                            {group.unreadCount > 3 ? "3+" : group.unreadCount}
                           </div>
                         )}
                       </div>

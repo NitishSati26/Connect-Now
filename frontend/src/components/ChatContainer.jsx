@@ -11,6 +11,8 @@ import { formatDistanceToNow } from "date-fns";
 import GroupChatContainer from "./group/GroupChatContainer";
 import { Paperclip, Image, FileText, X } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTypingIndicator } from "../hooks/useTypingIndicator";
+import TypingIndicator from "./TypingIndicator";
 
 const ChatContainer = () => {
   const {
@@ -33,6 +35,10 @@ const ChatContainer = () => {
   const fileInputRef = useRef(null);
   const docInputRef = useRef(null);
 
+  // Typing indicator hook
+  const { typingUsers, sendTypingIndicator, sendStopTypingIndicator } =
+    useTypingIndicator("private", selectedUser?._id, authUser?._id);
+
   // Always call hooks first, then conditionally render
   useEffect(() => {
     if (!selectedUser) return;
@@ -42,10 +48,33 @@ const ChatContainer = () => {
   }, [selectedUser, getMessages, subscribeToMessages, unsubscribeFromMessages]);
 
   useEffect(() => {
-    if (messageEndRef.current && messages) {
-      messageEndRef.current.scrollIntoView({ behavior: "smooth" });
+    if (messageEndRef.current && (messages || typingUsers.length > 0)) {
+      // Use setTimeout to ensure DOM is updated
+      setTimeout(() => {
+        if (messageEndRef.current) {
+          messageEndRef.current.scrollIntoView({
+            behavior: "smooth",
+            block: "end",
+          });
+        }
+      }, 100);
     }
-  }, [messages]);
+  }, [messages, typingUsers]);
+
+  // Scroll to bottom when chat is first opened
+  useEffect(() => {
+    if (selectedUser && messageEndRef.current) {
+      // Use a longer timeout for initial load to ensure messages are rendered
+      setTimeout(() => {
+        if (messageEndRef.current) {
+          messageEndRef.current.scrollIntoView({
+            behavior: "smooth",
+            block: "end",
+          });
+        }
+      }, 200);
+    }
+  }, [selectedUser]);
 
   const handleFileSelect = (type) => {
     setShowFileMenu(false);
@@ -199,7 +228,6 @@ const ChatContainer = () => {
             <div
               key={message._id}
               className={`chat ${isCurrentUser ? "chat-end" : "chat-start"}`}
-              ref={messageEndRef}
             >
               <div className={getBubbleClasses(isCurrentUser)}>
                 {message.image && (
@@ -271,6 +299,12 @@ const ChatContainer = () => {
             </div>
           );
         })}
+
+        {/* Typing Indicator */}
+        <TypingIndicator typingUsers={typingUsers} />
+
+        {/* Auto-scroll target */}
+        <div ref={messageEndRef} />
       </div>
 
       {/* File Upload Inputs */}
@@ -327,12 +361,22 @@ const ChatContainer = () => {
               className="w-full input input-bordered rounded-lg pr-12"
               placeholder={isSending ? "Sending..." : "Type a message..."}
               value={messageText}
-              onChange={(e) => setMessageText(e.target.value)}
+              onChange={(e) => {
+                setMessageText(e.target.value);
+                // Send typing indicator
+                if (e.target.value.trim() && selectedUser) {
+                  sendTypingIndicator(authUser.fullName);
+                }
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey && !isSending) {
                   e.preventDefault();
+                  sendStopTypingIndicator();
                   handleSendMessage(e);
                 }
+              }}
+              onBlur={() => {
+                sendStopTypingIndicator();
               }}
               disabled={isSending}
             />

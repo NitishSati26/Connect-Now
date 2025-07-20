@@ -67,16 +67,23 @@ export const getUserGroups = async (req, res) => {
       "-password"
     );
 
-    // Get the latest message timestamp for each group
+    // Get the latest message timestamp and unread count for each group
     const groupsWithLatestMessage = await Promise.all(
       groups.map(async (group) => {
         const latestMessage = await GroupMessage.findOne({
           groupId: group._id,
         }).sort({ createdAt: -1 });
 
+        // Get unread message count for this user in this group
+        const unreadCount = await GroupMessage.countDocuments({
+          groupId: group._id,
+          "readBy.userId": { $ne: userId },
+        });
+
         return {
           ...group.toObject(),
           latestMessageTime: latestMessage ? latestMessage.createdAt : null,
+          unreadCount,
         };
       })
     );
@@ -89,7 +96,7 @@ export const getUserGroups = async (req, res) => {
       return new Date(b.latestMessageTime) - new Date(a.latestMessageTime);
     });
 
-    // Remove the temporary latestMessageTime field
+    // Remove the temporary latestMessageTime field but keep unreadCount
     const finalGroups = sortedGroups.map(
       ({ latestMessageTime, ...group }) => group
     );
@@ -297,6 +304,42 @@ export const updateGroupInfo = async (req, res) => {
     res.status(200).json(group);
   } catch (error) {
     console.error("Error in updateGroupInfo:", error.message);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// Mark Group Messages as Read
+export const markGroupMessagesAsRead = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user._id;
+
+    // Mark all unread messages in this group as read for this user
+    await GroupMessage.updateMany(
+      {
+        groupId,
+        "readBy.userId": { $ne: userId },
+      },
+      {
+        $push: {
+          readBy: {
+            userId,
+            readAt: new Date(),
+          },
+        },
+      }
+    );
+
+    // Emit real-time update to mark unread count as 0
+    const { getReceiverSocketId, io } = await import("../lib/socket.js");
+    const userSocketId = getReceiverSocketId(userId);
+    if (userSocketId) {
+      io.to(userSocketId).emit("groupMessagesMarkedAsRead", { groupId });
+    }
+
+    res.status(200).json({ message: "Group messages marked as read" });
+  } catch (error) {
+    console.error("Error in markGroupMessagesAsRead:", error.message);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };

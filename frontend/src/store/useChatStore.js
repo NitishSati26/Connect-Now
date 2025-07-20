@@ -73,7 +73,7 @@ export const useChatStore = create((set, get) => ({
       set({ messages: res.data });
 
       // Mark messages as read when opening conversation
-      get().markMessagesAsRead(userId);
+      await get().markMessagesAsRead(userId);
     } catch (error) {
       toast.error(error.response.data.message);
     } finally {
@@ -82,13 +82,25 @@ export const useChatStore = create((set, get) => ({
   },
 
   updateUserUnreadCount: (senderId, increment = 1) => {
-    set((state) => ({
-      users: state.users.map((user) =>
-        user._id === senderId
-          ? { ...user, unreadCount: (user.unreadCount || 0) + increment }
-          : user
-      ),
-    }));
+    console.log(
+      "Updating unread count for:",
+      senderId,
+      "increment:",
+      increment
+    );
+    set((state) => {
+      const updatedUsers = state.users.map((user) => {
+        if (user._id === senderId) {
+          const newCount = (user.unreadCount || 0) + increment;
+          console.log(
+            `User ${user.fullName}: ${user.unreadCount || 0} -> ${newCount}`
+          );
+          return { ...user, unreadCount: newCount };
+        }
+        return user;
+      });
+      return { users: updatedUsers };
+    });
   },
 
   sendMessage: async (messageData) => {
@@ -112,61 +124,86 @@ export const useChatStore = create((set, get) => ({
     if (!selectedUser) return;
 
     const socket = useAuthStore.getState().socket;
+    if (!socket) return;
 
     socket.on("newMessage", (newMessage) => {
-      const isMessageSentFromSelectedUser =
-        newMessage.senderId === selectedUser._id;
-      if (!isMessageSentFromSelectedUser) return;
+      const currentState = get();
+      const authUser = useAuthStore.getState().authUser;
+
+      // Check if this message belongs to the current conversation
+      const isMessageForCurrentChat =
+        (newMessage.senderId === selectedUser._id &&
+          newMessage.receiverId === authUser._id) ||
+        (newMessage.senderId === authUser._id &&
+          newMessage.receiverId === selectedUser._id);
+
+      if (!isMessageForCurrentChat) return;
+
+      // Avoid duplicate messages
+      const messageExists = currentState.messages.some(
+        (msg) => msg._id === newMessage._id
+      );
+      if (messageExists) return;
 
       set({
-        messages: [...get().messages, newMessage],
+        messages: [...currentState.messages, newMessage],
       });
 
       // Move sender to top of users list when receiving message
       get().updateUserOrder(newMessage.senderId);
 
-      // Don't increment unread count if we're currently viewing this conversation
-      // The message will be marked as read automatically
+      // Mark as read if we're currently viewing this conversation
+      if (newMessage.senderId === selectedUser._id) {
+        get().markMessagesAsRead(selectedUser._id);
+      }
     });
   },
 
-  // Subscribe to global message events (not tied to selected user)
+  // Subscribe to global message events for unread counts and user ordering
   subscribeToGlobalMessages: () => {
     const socket = useAuthStore.getState().socket;
     if (!socket) return;
 
-    console.log("Subscribing to global messages");
-
-    // Refresh users list to get latest unread counts
-    get().getUsers();
-
     socket.on("newMessage", (newMessage) => {
-      console.log("Global message received:", newMessage);
-
-      // Move sender to top of users list when receiving any message
-      get().updateUserOrder(newMessage.senderId);
-
-      // Only increment unread count if not currently viewing this conversation
-      // AND if the message is from someone else (not from current user)
+      console.log("Global newMessage received:", newMessage);
       const currentState = get();
       const { selectedUser } = currentState;
       const authUser = useAuthStore.getState().authUser;
 
       const isFromCurrentUser = newMessage.senderId === authUser._id;
+      const isToCurrentUser = newMessage.receiverId === authUser._id;
       const isCurrentlyViewing =
         selectedUser && selectedUser._id === newMessage.senderId;
 
       console.log("Message conditions:", {
         isFromCurrentUser,
+        isToCurrentUser,
         isCurrentlyViewing,
         senderId: newMessage.senderId,
+        receiverId: newMessage.receiverId,
         authUserId: authUser._id,
+        selectedUserId: selectedUser?._id,
       });
 
-      if (!isFromCurrentUser && !isCurrentlyViewing) {
+      // Move sender to top of users list when receiving any message
+      get().updateUserOrder(newMessage.senderId);
+
+      // Only increment unread count if:
+      // 1. Message is TO current user (not from current user)
+      // 2. Not currently viewing this conversation
+      if (isToCurrentUser && !isFromCurrentUser && !isCurrentlyViewing) {
         console.log("Incrementing unread count for:", newMessage.senderId);
         get().updateUserUnreadCount(newMessage.senderId);
       }
+    });
+
+    // Listen for messages marked as read
+    socket.on("messagesMarkedAsRead", ({ userId }) => {
+      set((state) => ({
+        users: state.users.map((user) =>
+          user._id === userId ? { ...user, unreadCount: 0 } : user
+        ),
+      }));
     });
   },
 
@@ -180,6 +217,7 @@ export const useChatStore = create((set, get) => ({
     if (!socket) return;
 
     socket.off("newMessage");
+    socket.off("messagesMarkedAsRead");
   },
 
   setSelectedUser: (selectedUser) => set({ selectedUser }),

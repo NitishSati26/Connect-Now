@@ -9,6 +9,7 @@ import {
   addMemberToGroup,
   removeMemberFromGroup,
   updateGroupInfo,
+  markGroupMessagesAsRead,
 } from "../controllers/group.controller.js";
 
 const router = express.Router();
@@ -33,5 +34,8 @@ router.put("/remove-member/:groupId", protectRoute, removeMemberFromGroup);
 
 // Update group info (admin only)
 router.put("/:groupId", protectRoute, updateGroupInfo);
+
+// Mark group messages as read
+router.put("/read/:groupId", protectRoute, markGroupMessagesAsRead);
 
 export default router;
