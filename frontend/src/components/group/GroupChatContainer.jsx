@@ -14,13 +14,16 @@ import {
   MicOff,
   Paperclip,
   FileText,
+  ArrowLeft,
+  Trash2,
 } from "lucide-react";
 import { useSpeechRecognition } from "../../hooks/useSpeechRecognition";
 import toast from "react-hot-toast";
 import { useTypingIndicator } from "../../hooks/useTypingIndicator";
 import TypingIndicator from "../TypingIndicator";
+import ImageModal from "../ImageModal";
 
-const GroupChatContainer = () => {
+const GroupChatContainer = ({ onBack }) => {
   const {
     selectedGroup,
     groupMessages,
@@ -30,6 +33,7 @@ const GroupChatContainer = () => {
     subscribeToGroupMessages,
     unsubscribeFromGroupMessages,
     setSelectedGroup,
+    deleteGroup,
   } = useGroupStore();
 
   const { authUser } = useAuthStore();
@@ -39,6 +43,9 @@ const GroupChatContainer = () => {
   const [showFileMenu, setShowFileMenu] = useState(false);
   const [filePreview, setFilePreview] = useState(null);
   const [isSending, setIsSending] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [isDeletingGroup, setIsDeletingGroup] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const docInputRef = useRef(null);
@@ -205,7 +212,7 @@ const GroupChatContainer = () => {
         messageData.documentName = filePreview.name;
       }
 
-      console.log("Sending group message data:", messageData);
+      // console.log("Sending group message data:", messageData);
       await sendGroupMessage(selectedGroup._id, messageData);
 
       setMessageText("");
@@ -220,8 +227,25 @@ const GroupChatContainer = () => {
     }
   };
 
+  // Check if current user is admin
+  const isAdmin = selectedGroup?.admin === authUser._id;
+
+  // Delete group handler
+  const handleDeleteGroup = async () => {
+    setIsDeletingGroup(true);
+    try {
+      await deleteGroup(selectedGroup._id);
+      setShowDeleteModal(false);
+      // Group will be removed from state automatically via socket event
+    } catch {
+      toast.error("Failed to delete group");
+    } finally {
+      setIsDeletingGroup(false);
+    }
+  };
+
   return (
-    <div className="flex-1 flex flex-col overflow-auto">
+    <div className="flex-1 flex flex-col h-full">
       {/* Header */}
       <div className="p-2.5 border-b border-base-300">
         <div className="flex items-center justify-between">
@@ -236,7 +260,7 @@ const GroupChatContainer = () => {
                     className="object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full bg-zinc-600 text-white rounded-full flex items-center justify-center text-lg font-semibold">
+                  <div className="w-full h-full bg-base-300 text-base-content rounded-full flex items-center justify-center text-lg font-semibold">
                     {selectedGroup?.name?.[0]}
                   </div>
                 )}
@@ -252,19 +276,41 @@ const GroupChatContainer = () => {
             </div>
           </div>
 
-          {/* Group Info and Close buttons */}
+          {/* Group Info, Back button for mobile, and Close button for desktop */}
           <div className="flex items-center gap-2">
             <button
-              className="btn btn-circle btn-ghost btn-sm"
+              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-base-200 transition-colors"
               onClick={() => setShowGroupInfo(true)}
               title="Group Info"
             >
-              <Info size={20} />
+              <Info size={18} />
             </button>
 
-            {/* Close button */}
+            {/* Delete Group button - Admin only */}
+            {isAdmin && (
+              <button
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-error/10 text-error transition-colors"
+                onClick={() => setShowDeleteModal(true)}
+                title="Delete Group"
+              >
+                <Trash2 size={18} />
+              </button>
+            )}
+
+            {/* Back button - only show on mobile */}
+            {onBack && (
+              <button
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-base-200 transition-colors lg:hidden"
+                onClick={onBack}
+                title="Back to Groups"
+              >
+                <ArrowLeft size={18} />
+              </button>
+            )}
+
+            {/* Close button - only show on desktop */}
             <button
-              className="btn btn-circle btn-ghost btn-sm"
+              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-base-200 transition-colors hidden lg:block p-0 border-0 relative"
               onClick={() => {
                 setSelectedGroup(null);
                 // Also clear selected user to be consistent with sidebar behavior
@@ -273,14 +319,14 @@ const GroupChatContainer = () => {
               }}
               title="Close Chat"
             >
-              <X size={20} />
+              <X size={18} className="absolute inset-0 m-auto" />
             </button>
           </div>
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+      <div className="flex-1 overflow-y-auto p-4 space-y-2 min-h-0">
         {isGroupMessagesLoading ? (
           <div className="flex items-center justify-center h-full">
             <span className="loading loading-spinner loading-md"></span>
@@ -334,7 +380,10 @@ const GroupChatContainer = () => {
                     <img
                       src={msg.image}
                       alt="Attachment"
-                      className="w-full max-w-[280px] rounded-lg mb-3"
+                      className="w-full max-w-[280px] rounded-lg mb-3 cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() =>
+                        setSelectedImage({ url: msg.image, name: "Image" })
+                      }
                     />
                   )}
                   {msg.document && (
@@ -486,7 +535,7 @@ const GroupChatContainer = () => {
             {/* Mic Icon Inside Input */}
             <button
               type="button"
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-black"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-base-content/50 hover:text-base-content"
               onClick={isListening ? stopListening : startListening}
               title={isListening ? "Stop Recording" : "Start Recording"}
             >
@@ -544,9 +593,68 @@ const GroupChatContainer = () => {
 
       {/* Group Info Modal */}
       {showGroupInfo && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-base-300/60 backdrop-blur-sm flex items-center justify-center z-50">
           <GroupInfoModal onClose={() => setShowGroupInfo(false)} />
         </div>
+      )}
+
+      {/* Delete Group Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-base-300/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-base-100 rounded-xl shadow-lg w-full max-w-md p-6 relative border border-base-300">
+            <button
+              className="absolute top-3 right-3 text-base-content/50 hover:text-primary"
+              onClick={() => setShowDeleteModal(false)}
+              title="Close"
+            >
+              <X size={22} />
+            </button>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-error/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 size={32} className="text-error" />
+              </div>
+              <h3 className="text-lg font-bold mb-2">Delete Group</h3>
+              <p className="text-base-content/70 mb-6">
+                Are you sure you want to delete{" "}
+                <strong>&ldquo;{selectedGroup?.name}&rdquo;</strong>? This
+                action cannot be undone and will permanently remove all messages
+                and members.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  className="btn btn-outline flex-1"
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={isDeletingGroup}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-error flex-1"
+                  onClick={handleDeleteGroup}
+                  disabled={isDeletingGroup}
+                >
+                  {isDeletingGroup ? (
+                    <>
+                      <span className="loading loading-spinner loading-sm"></span>
+                      Deleting...
+                    </>
+                  ) : (
+                    "Delete Group"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Modal */}
+      {selectedImage && (
+        <ImageModal
+          imageUrl={selectedImage.url}
+          imageName={selectedImage.name}
+          onClose={() => setSelectedImage(null)}
+        />
       )}
     </div>
   );

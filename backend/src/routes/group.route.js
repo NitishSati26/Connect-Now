@@ -10,6 +10,8 @@ import {
   removeMemberFromGroup,
   updateGroupInfo,
   markGroupMessagesAsRead,
+  deleteGroupPhoto,
+  deleteGroup,
 } from "../controllers/group.controller.js";
 
 const router = express.Router();
@@ -34,6 +36,12 @@ router.put("/remove-member/:groupId", protectRoute, removeMemberFromGroup);
 
 // Update group info (admin only)
 router.put("/:groupId", protectRoute, updateGroupInfo);
+
+// Delete group photo (admin only)
+router.delete("/:groupId/photo", protectRoute, deleteGroupPhoto);
+
+// Delete group (admin only)
+router.delete("/:groupId", protectRoute, deleteGroup);
 
 // Mark group messages as read
 router.put("/read/:groupId", protectRoute, markGroupMessagesAsRead);

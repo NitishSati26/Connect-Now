@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import Navbar from "./components/Navbar";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/Home";
@@ -12,16 +12,21 @@ import { Toaster } from "react-hot-toast";
 import { useThemeStore } from "./store/useThemeStore";
 
 const App = () => {
-  const { authUser, checkAuth, isCheckingAuth, onlineUsers } = useAuthStore();
+  const {
+    authUser,
+    checkAuth,
+    isCheckingAuth,
+    // onlineUsers
+  } = useAuthStore();
   const { theme } = useThemeStore();
 
-  console.log({ onlineUsers });
+  // console.log({ onlineUsers });
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
-  console.log({ authUser });
+  // console.log({ authUser });
 
   if (isCheckingAuth && !authUser)
     return (

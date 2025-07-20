@@ -85,12 +85,12 @@ export const getMessages = async (req, res) => {
 
 export const sendMessages = async (req, res) => {
   try {
-    console.log("sendMessages called with body:", {
-      hasText: !!req.body.text,
-      hasImage: !!req.body.image,
-      hasDocument: !!req.body.document,
-      documentName: req.body.documentName,
-    });
+    // console.log("sendMessages called with body:", {
+    //   hasText: !!req.body.text,
+    //   hasImage: !!req.body.image,
+    //   hasDocument: !!req.body.document,
+    //   documentName: req.body.documentName,
+    // });
 
     const { text, image, document, documentName } = req.body;
     const { id: receiverId } = req.params;
@@ -101,13 +101,13 @@ export const sendMessages = async (req, res) => {
 
     if (image) {
       try {
-        console.log("Attempting to upload image...");
+        // console.log("Attempting to upload image...");
         // Upload base64 image to cloudinary
         const uploadResponse = await cloudinary.uploader.upload(image);
         imageUrl = uploadResponse.secure_url;
-        console.log("Image uploaded successfully:", imageUrl);
+        // console.log("Image uploaded successfully:", imageUrl);
       } catch (uploadError) {
-        console.error("Image upload error:", uploadError);
+        // console.error("Image upload error:", uploadError);
         return res
           .status(400)
           .json({ error: "Failed to upload image: " + uploadError.message });
@@ -116,11 +116,11 @@ export const sendMessages = async (req, res) => {
 
     if (document) {
       try {
-        console.log("Attempting to upload document:", documentName);
+        // console.log("Attempting to upload document:", documentName);
 
         // Upload document to local storage
         documentUrl = await uploadDocument(document, documentName);
-        console.log("Document uploaded successfully:", documentUrl);
+        // console.log("Document uploaded successfully:", documentUrl);
       } catch (uploadError) {
         console.error("Document upload error:", uploadError);
         return res
@@ -129,13 +129,13 @@ export const sendMessages = async (req, res) => {
       }
     }
 
-    console.log("Creating new message with:", {
-      senderId,
-      receiverId,
-      hasText: !!text,
-      hasImage: !!imageUrl,
-      hasDocument: !!documentUrl,
-    });
+    // console.log("Creating new message with:", {
+    //   senderId,
+    //   receiverId,
+    //   hasText: !!text,
+    //   hasImage: !!imageUrl,
+    //   hasDocument: !!documentUrl,
+    // });
 
     // Validate that at least one content type is present
     if (!text && !imageUrl && !documentUrl) {
@@ -154,7 +154,7 @@ export const sendMessages = async (req, res) => {
     });
 
     await newMessage.save();
-    console.log("Message saved successfully:", newMessage._id);
+    // console.log("Message saved successfully:", newMessage._id);
 
     // Emit to receiver for real-time chat updates
     const receiverSocketId = getReceiverSocketId(receiverId);

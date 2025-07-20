@@ -77,7 +77,7 @@ export const uploadDocument = async (base64Data, filename) => {
     // Return the URL path (not full URL, just the path)
     const urlPath = `/uploads/documents/${uniqueFilename}`;
 
-    console.log(`Document uploaded successfully: ${urlPath}`);
+    // console.log(`Document uploaded successfully: ${urlPath}`);
     return urlPath;
   } catch (error) {
     console.error("Error uploading document:", error);
@@ -96,7 +96,7 @@ export const deleteDocument = async (filePath) => {
     // Check if file exists and delete
     if (fs.existsSync(fullPath)) {
       fs.unlinkSync(fullPath);
-      console.log(`Document deleted: ${filename}`);
+      // console.log(`Document deleted: ${filename}`);
     }
   } catch (error) {
     console.error("Error deleting document:", error);

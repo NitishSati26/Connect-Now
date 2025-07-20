@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import {
   Eye,
@@ -15,10 +15,12 @@ import toast from "react-hot-toast";
 
 const SignUp = () => {
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
     password: "",
+    confirmPassword: "",
   });
 
   const { signup, isSigningUp } = useAuthStore();
@@ -47,6 +49,15 @@ const SignUp = () => {
           "- Include one lowercase letter\n" +
           "- Include one special character"
       );
+
+    // Check if confirm password is provided
+    if (!formData.confirmPassword)
+      return toast.error("Please confirm your password");
+
+    // Check if passwords match
+    if (formData.password !== formData.confirmPassword) {
+      return toast.error("Passwords do not match");
+    }
 
     return true;
   };
@@ -155,6 +166,40 @@ const SignUp = () => {
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
+                    <EyeOff className="size-5 text-base-content/40" />
+                  ) : (
+                    <Eye className="size-5 text-base-content/40" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text font-medium">Confirm Password</span>
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="size-5 text-base-content/40" />
+                </div>
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  className={`input input-bordered w-full pl-10`}
+                  placeholder="••••••••"
+                  value={formData.confirmPassword}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      confirmPassword: e.target.value,
+                    })
+                  }
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  {showConfirmPassword ? (
                     <EyeOff className="size-5 text-base-content/40" />
                   ) : (
                     <Eye className="size-5 text-base-content/40" />

@@ -16,6 +16,8 @@ export const useGroupStore = create((set, get) => ({
     set({ isGroupsLoading: true });
     try {
       const res = await axiosInstance.get("/groups/my-groups");
+      // Backend already sorts groups properly, so we can use them as-is
+      // The backend prioritizes newly created groups at the top
       set({ groups: res.data });
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to fetch groups");
@@ -41,20 +43,39 @@ export const useGroupStore = create((set, get) => ({
     });
   },
 
+  // Move a group to the top of the list (for newly created groups)
+  moveGroupToTop: (groupId) => {
+    set((state) => {
+      const updatedGroups = [...state.groups];
+      const groupIndex = updatedGroups.findIndex(
+        (group) => group._id === groupId
+      );
+
+      if (groupIndex !== -1) {
+        // Move group to top of list
+        const [group] = updatedGroups.splice(groupIndex, 1);
+        updatedGroups.unshift(group);
+        return { groups: updatedGroups };
+      }
+
+      return state;
+    });
+  },
+
   updateGroupUnreadCount: (groupId, increment = 1) => {
-    console.log(
-      "Updating group unread count for:",
-      groupId,
-      "increment:",
-      increment
-    );
+    // console.log(
+    //   "Updating group unread count for:",
+    //   groupId,
+    //   "increment:",
+    //   increment
+    // );
     set((state) => {
       const updatedGroups = state.groups.map((group) => {
         if (group._id === groupId) {
           const newCount = (group.unreadCount || 0) + increment;
-          console.log(
-            `Group ${group.name}: ${group.unreadCount || 0} -> ${newCount}`
-          );
+          // console.log(
+          //   `Group ${group.name}: ${group.unreadCount || 0} -> ${newCount}`
+          // );
           return { ...group, unreadCount: newCount };
         }
         return group;
@@ -73,8 +94,8 @@ export const useGroupStore = create((set, get) => ({
           group._id === groupId ? { ...group, unreadCount: 0 } : group
         ),
       }));
-    } catch (error) {
-      console.error("Error marking group messages as read:", error);
+    } catch {
+      // console.error("Error marking group messages as read:", error);
     }
   },
 
@@ -112,14 +133,38 @@ export const useGroupStore = create((set, get) => ({
   createGroup: async ({ name, members, groupPic }) => {
     set({ isGroupsLoading: true });
     try {
-      await axiosInstance.post("/groups/create", {
+      // console.log("Creating group:", {
+      //   name,
+      //   members,
+      //   hasGroupPic: !!groupPic,
+      // });
+      const response = await axiosInstance.post("/groups/create", {
         name,
         members,
         groupPic,
       });
-      // Don't add to groups list here - let the socket event handle it
-      toast.success("Group created!");
+      // console.log("Group creation response:", response.data);
+
+      // Add a fallback: refresh groups list after a short delay
+      // This ensures the group appears even if socket event fails
+      setTimeout(() => {
+        // console.log("Refreshing groups list as fallback");
+        get().getGroups();
+        // Move the newly created group to top after refresh
+        setTimeout(() => {
+          if (response.data._id) {
+            // console.log(
+            //   "Moving newly created group to top after fallback refresh"
+            // );
+            get().moveGroupToTop(response.data._id);
+          }
+        }, 100);
+      }, 1000);
+
+      // Don't show toast here - let the socket event handle it
+      // This prevents duplicate notifications
     } catch (error) {
+      // console.error("Error creating group:", error);
       toast.error(error.response?.data?.message || "Failed to create group");
     } finally {
       set({ isGroupsLoading: false });
@@ -146,6 +191,53 @@ export const useGroupStore = create((set, get) => ({
       toast.success("Group updated!");
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to update group");
+    }
+  },
+
+  deleteGroupPhoto: async (groupId) => {
+    try {
+      const res = await axiosInstance.delete(`/groups/${groupId}/photo`);
+      set((state) => {
+        const updatedGroups = state.groups.map((g) =>
+          g._id === groupId ? res.data : g
+        );
+        // If the updated group is selected, update selectedGroup too
+        const selectedGroup =
+          state.selectedGroup && state.selectedGroup._id === groupId
+            ? res.data
+            : state.selectedGroup;
+        return { groups: updatedGroups, selectedGroup };
+      });
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Failed to delete group photo"
+      );
+      throw error; // Re-throw to handle in component
+    }
+  },
+
+  deleteGroup: async (groupId) => {
+    try {
+      // console.log("Deleting group:", groupId);
+      await axiosInstance.delete(`/groups/${groupId}`);
+
+      // Remove group from local state
+      set((state) => {
+        const updatedGroups = state.groups.filter((g) => g._id !== groupId);
+        // If the deleted group is selected, clear selection
+        const selectedGroup =
+          state.selectedGroup && state.selectedGroup._id === groupId
+            ? null
+            : state.selectedGroup;
+        return { groups: updatedGroups, selectedGroup };
+      });
+
+      // Don't show toast here - let the socket event handle it
+      // This prevents duplicate notifications
+    } catch (error) {
+      // console.error("Error deleting group:", error);
+      toast.error(error.response?.data?.message || "Failed to delete group");
+      throw error; // Re-throw to handle in component
     }
   },
 
@@ -285,32 +377,52 @@ export const useGroupStore = create((set, get) => ({
   // Subscribe to global group events (not tied to selected group)
   subscribeToGlobalGroupEvents: () => {
     const socket = useAuthStore.getState().socket;
-    if (!socket) return;
+    if (!socket) {
+      // console.log("Socket not available for group events subscription");
+      return;
+    }
 
     // Prevent multiple subscriptions
     const { isGlobalEventsSubscribed } = get();
-    if (isGlobalEventsSubscribed) return;
+    if (isGlobalEventsSubscribed) {
+      // console.log("Global group events already subscribed");
+      return;
+    }
 
+    // console.log("Subscribing to global group events");
     set({ isGlobalEventsSubscribed: true });
 
     // Listen for new group creation (when user is added to a new group)
     socket.on("groupCreated", (data) => {
+      // console.log("groupCreated event received:", data);
       set((state) => {
         // Check if group already exists in the list
         const groupExists = state.groups.some((g) => g._id === data.group._id);
-        if (groupExists) return state;
+        if (groupExists) {
+          // console.log("Group already exists in list, moving to top");
+          // Move existing group to top
+          get().moveGroupToTop(data.group._id);
+          return state;
+        }
 
+        // console.log("Adding new group to top of list:", data.group.name);
         return {
-          groups: [...state.groups, data.group],
+          groups: [data.group, ...state.groups], // Add to top instead of bottom
         };
       });
 
-      toast.success(`You've been added to ${data.group.name}!`);
+      // Show different messages based on who created the group
+      const authUser = useAuthStore.getState().authUser;
+      if (data.addedBy === authUser._id) {
+        toast.success(`Group "${data.group.name}" created successfully!`);
+      } else {
+        toast.success(`You've been added to "${data.group.name}"!`);
+      }
     });
 
     // Listen for member additions to any group (for users not currently viewing that group)
     socket.on("groupMemberAdded", (data) => {
-      console.log("groupMemberAdded event received:", data);
+      // console.log("groupMemberAdded event received:", data);
 
       set((state) => {
         const updatedGroups = state.groups.map((g) =>
@@ -334,22 +446,22 @@ export const useGroupStore = create((set, get) => ({
       const groupExisted = currentState.groups.some(
         (g) => g._id === data.groupId
       );
-      console.log("Group existed check:", {
-        groupExisted,
-        groupId: data.groupId,
-      });
+      // console.log("Group existed check:", {
+      //   groupExisted,
+      //   groupId: data.groupId,
+      // });
       if (groupExisted) {
-        console.log(
-          "Showing member addition notification for:",
-          data.group.name
-        );
+        // console.log(
+        //   "Showing member addition notification for:",
+        //   data.group.name
+        // );
         toast.success(`New member added to ${data.group.name}!`);
       }
     });
 
     // Listen for member removals from any group
     socket.on("groupMemberRemoved", (data) => {
-      console.log("groupMemberRemoved event received:", data);
+      // console.log("groupMemberRemoved event received:", data);
 
       set((state) => {
         const updatedGroups = state.groups.map((g) =>
@@ -368,7 +480,7 @@ export const useGroupStore = create((set, get) => ({
       });
 
       // Show notification for member removal
-      console.log("Showing member removal notification for:", data.group.name);
+      // console.log("Showing member removal notification for:", data.group.name);
       toast.success(`Member removed from ${data.group.name}!`);
     });
 
@@ -396,7 +508,7 @@ export const useGroupStore = create((set, get) => ({
 
     // Listen for new group messages for unread counts
     socket.on("newGroupMessage", (newMessage) => {
-      console.log("Global newGroupMessage received:", newMessage);
+      // console.log("Global newGroupMessage received:", newMessage);
       const currentState = get();
       const { selectedGroup } = currentState;
       const authUser = useAuthStore.getState().authUser;
@@ -405,14 +517,14 @@ export const useGroupStore = create((set, get) => ({
       const isCurrentlyViewing =
         selectedGroup && selectedGroup._id === newMessage.groupId;
 
-      console.log("Group message conditions:", {
-        isFromCurrentUser,
-        isCurrentlyViewing,
-        senderId: newMessage.senderId,
-        groupId: newMessage.groupId,
-        authUserId: authUser._id,
-        selectedGroupId: selectedGroup?._id,
-      });
+      // console.log("Group message conditions:", {
+      //   isFromCurrentUser,
+      //   isCurrentlyViewing,
+      //   senderId: newMessage.senderId,
+      //   groupId: newMessage.groupId,
+      //   authUserId: authUser._id,
+      //   selectedGroupId: selectedGroup?._id,
+      // });
 
       // Move group to top of list when receiving any message
       get().updateGroupOrder(newMessage.groupId);
@@ -421,7 +533,7 @@ export const useGroupStore = create((set, get) => ({
       // 1. Not from current user
       // 2. Not currently viewing this group
       if (!isFromCurrentUser && !isCurrentlyViewing) {
-        console.log("Incrementing group unread count for:", newMessage.groupId);
+        // console.log("Incrementing group unread count for:", newMessage.groupId);
         get().updateGroupUnreadCount(newMessage.groupId);
       }
     });
@@ -433,6 +545,29 @@ export const useGroupStore = create((set, get) => ({
           group._id === groupId ? { ...group, unreadCount: 0 } : group
         ),
       }));
+    });
+
+    // Listen for group deletion
+    socket.on("groupDeleted", (data) => {
+      // console.log("groupDeleted event received:", data);
+      set((state) => {
+        const updatedGroups = state.groups.filter(
+          (group) => group._id !== data.groupId
+        );
+        const updatedSelectedGroup =
+          state.selectedGroup && state.selectedGroup._id === data.groupId
+            ? null
+            : state.selectedGroup;
+        return { groups: updatedGroups, selectedGroup: updatedSelectedGroup };
+      });
+
+      // Show different messages based on who deleted the group
+      const authUser = useAuthStore.getState().authUser;
+      if (data.deletedBy === authUser._id) {
+        toast.success("Group deleted successfully!");
+      } else {
+        toast.success(`"${data.groupName}" group has been deleted`);
+      }
     });
   },
 
@@ -456,6 +591,7 @@ export const useGroupStore = create((set, get) => ({
     socket.off("groupInfoUpdated");
     socket.off("newGroupMessage");
     socket.off("groupMessagesMarkedAsRead");
+    socket.off("groupDeleted");
 
     set({ isGlobalEventsSubscribed: false });
   },

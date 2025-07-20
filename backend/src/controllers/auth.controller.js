@@ -5,7 +5,7 @@ import cloudinary from "../lib/cloudinary.js";
 import { io } from "../lib/socket.js";
 
 export const signup = async (req, res) => {
-  const { fullName, email, password } = req.body;
+  const { fullName, email, password, confirmPassword } = req.body;
   try {
     if (!fullName) {
       return res.status(400).json({ message: "fullName is required" });
@@ -17,6 +17,16 @@ export const signup = async (req, res) => {
 
     if (!password) {
       return res.status(400).json({ message: "Password field is required" });
+    }
+
+    if (!confirmPassword) {
+      return res
+        .status(400)
+        .json({ message: "Confirm password field is required" });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({ message: "Passwords do not match" });
     }
 
     if (password.length < 6) {
@@ -54,9 +64,8 @@ export const signup = async (req, res) => {
     } else {
       res.status(400).json({ message: "Invalid user data" });
     }
-    // console.log("Request Body:", req.body);
   } catch (error) {
-    console.log("Error in signup controller", error.message);
+    // console.log("Error in signup controller", error.message);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
@@ -98,7 +107,7 @@ export const login = async (req, res) => {
       profilePic: user.profilePic,
     });
   } catch (error) {
-    console.log("Error in login controller", error.message);
+    // console.log("Error in login controller", error.message);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
@@ -108,7 +117,7 @@ export const logout = (req, res) => {
     res.cookie("jwt", "", { maxAge: 0 });
     res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
-    console.log("Error in logout controller", error.message);
+    // console.log("Error in logout controller", error.message);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
@@ -140,7 +149,7 @@ export const updateProfile = async (req, res) => {
 
     res.status(200).json(updatedUser);
   } catch (error) {
-    console.log("Error in Update Profile:", error);
+    // console.log("Error in Update Profile:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
@@ -149,7 +158,79 @@ export const checkAuth = (req, res) => {
   try {
     res.status(200).json(req.user);
   } catch (error) {
-    console.log("Error in checkAuth controller", error.message);
+    // console.log("Error in checkAuth controller", error.message);
     res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  const { email, newPassword } = req.body;
+
+  try {
+    // Validate request fields
+    if (!newPassword) {
+      return res.status(400).json({ message: "New password is required" });
+    }
+
+    // Password validation (same as signup)
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      return res.status(400).json({
+        message:
+          "Password must be at least 8 characters and include one uppercase letter, one lowercase letter, and one special character",
+      });
+    }
+
+    // Find user by email (email is already validated before modal opens)
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(400).json({ message: "User not found" });
+    }
+
+    // Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update user's password
+    user.password = hashedPassword;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Password reset successfully",
+    });
+  } catch (error) {
+    // console.log("Error in resetPassword controller", error.message);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const checkEmail = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    // Validate request fields
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    // Find user by email
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(400).json({
+        message: "You are not registered with this email address",
+        exists: false,
+      });
+    }
+
+    res.status(200).json({
+      message: "Email found",
+      exists: true,
+    });
+  } catch (error) {
+    // console.log("Error in checkEmail controller", error.message);
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };

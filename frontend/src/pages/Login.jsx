@@ -3,9 +3,13 @@ import { useAuthStore } from "../store/useAuthStore";
 import AuthImagePattern from "../components/AuthImagePattern";
 import { Link } from "react-router-dom";
 import { Eye, EyeOff, Loader2, Lock, Mail, MessageSquare } from "lucide-react";
+import ForgotPasswordModal from "../components/ForgotPasswordModal";
+import toast from "react-hot-toast";
+import { axiosInstance } from "../lib/axios";
 
 const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -89,6 +93,44 @@ const LoginPage = () => {
               </div>
             </div>
 
+            {/* Forgot Password Link */}
+            <div className="text-right">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!formData.email) {
+                    toast.error("Please enter your email address first");
+                    return;
+                  }
+
+                  try {
+                    // Check if email exists in database before opening modal
+                    const response = await axiosInstance.post(
+                      "/auth/check-email",
+                      {
+                        email: formData.email,
+                      }
+                    );
+
+                    if (response.data.exists) {
+                      setShowForgotPassword(true);
+                    }
+                  } catch (error) {
+                    if (error.response?.status === 400) {
+                      toast.error(
+                        "You are not registered with this email address"
+                      );
+                    } else {
+                      toast.error("Something went wrong. Please try again.");
+                    }
+                  }
+                }}
+                className="text-sm text-primary hover:text-primary/80 transition-colors"
+              >
+                Forgot your password?
+              </button>
+            </div>
+
             <button
               type="submit"
               className="btn btn-primary w-full"
@@ -123,6 +165,14 @@ const LoginPage = () => {
           "Sign in to continue your conversations and catch up with your messages."
         }
       />
+
+      {/* Forgot Password Modal */}
+      {showForgotPassword && (
+        <ForgotPasswordModal
+          email={formData.email}
+          onClose={() => setShowForgotPassword(false)}
+        />
+      )}
     </div>
   );
 };

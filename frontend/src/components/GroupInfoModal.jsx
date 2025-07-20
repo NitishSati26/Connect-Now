@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useGroupStore } from "../store/useGroupStore";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
-import { Pencil, UserPlus, X, Search } from "lucide-react";
+import { Pencil, UserPlus, X, Search, Trash2 } from "lucide-react";
+import toast from "react-hot-toast";
 
 const GroupInfoModal = ({ onClose }) => {
   const {
@@ -10,6 +11,8 @@ const GroupInfoModal = ({ onClose }) => {
     updateGroupInfo,
     addMemberToGroup,
     removeMemberFromGroup,
+    deleteGroupPhoto,
+    deleteGroup,
   } = useGroupStore();
   const { authUser } = useAuthStore();
   const { users } = useChatStore();
@@ -21,7 +24,10 @@ const GroupInfoModal = ({ onClose }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isRemoving, setIsRemoving] = useState(""); // userId being removed
+  const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
+  const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [search, setSearch] = useState("");
 
   // Ensure modal always shows the latest group image after update
@@ -34,12 +40,12 @@ const GroupInfoModal = ({ onClose }) => {
     let base64Pic = selectedGroup?.groupPic;
     if (picFile) {
       base64Pic = await toBase64(picFile);
-      console.log("Base64 image length:", base64Pic.length);
+      // console.log("Base64 image length:", base64Pic.length);
     }
-    console.log("Updating group with:", {
-      name: groupName,
-      groupPic: base64Pic,
-    });
+    // console.log("Updating group with:", {
+    //   name: groupName,
+    //   groupPic: base64Pic,
+    // });
     await updateGroupInfo(selectedGroup._id, {
       name: groupName,
       groupPic: base64Pic,
@@ -87,11 +93,40 @@ const GroupInfoModal = ({ onClose }) => {
     setSearch("");
   };
 
+  // Delete group photo logic
+  const handleDeletePhoto = async () => {
+    if (!selectedGroup?.groupPic) return;
+
+    setIsDeletingPhoto(true);
+    try {
+      await deleteGroupPhoto(selectedGroup._id);
+      toast.success("Group photo deleted successfully!");
+    } catch {
+      toast.error("Failed to delete group photo");
+    } finally {
+      setIsDeletingPhoto(false);
+    }
+  };
+
+  // Delete group logic
+  const handleDeleteGroup = async () => {
+    setIsDeletingGroup(true);
+    try {
+      await deleteGroup(selectedGroup._id);
+      setShowDeleteModal(false);
+      onClose(); // Close the modal after successful deletion
+    } catch {
+      toast.error("Failed to delete group");
+    } finally {
+      setIsDeletingGroup(false);
+    }
+  };
+
   return (
-    <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-auto overflow-hidden relative">
+    <div className="bg-base-100 rounded-2xl shadow-xl w-full max-w-lg mx-auto overflow-hidden relative border border-base-300">
       {/* Floating close icon */}
       <button
-        className="absolute top-4 right-4 text-gray-400 hover:text-primary z-10"
+        className="absolute top-4 right-4 text-base-content/50 hover:text-primary z-10"
         onClick={onClose}
         title="Close"
       >
@@ -110,19 +145,36 @@ const GroupInfoModal = ({ onClose }) => {
             className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg"
           />
           {isAdmin && (
-            <label className="absolute bottom-2 right-2 bg-white rounded-full p-1 shadow cursor-pointer hover:bg-gray-100 transition">
-              <Pencil size={18} className="text-primary" />
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    setPicFile(e.target.files[0]);
-                  }
-                }}
-              />
-            </label>
+            <>
+              <label className="absolute bottom-2 right-2 bg-base-100 rounded-full p-1 shadow cursor-pointer hover:bg-base-200 transition">
+                <Pencil size={18} className="text-primary" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setPicFile(e.target.files[0]);
+                    }
+                  }}
+                />
+              </label>
+              {/* Delete photo button - only show if group has a photo and no new photo is selected */}
+              {selectedGroup?.groupPic && !picFile && (
+                <button
+                  onClick={handleDeletePhoto}
+                  disabled={isDeletingPhoto}
+                  className="absolute top-2 right-2 bg-error hover:bg-error/80 text-error-content rounded-full p-1 shadow cursor-pointer transition-colors disabled:opacity-50"
+                  title="Delete group photo"
+                >
+                  {isDeletingPhoto ? (
+                    <span className="loading loading-spinner loading-xs"></span>
+                  ) : (
+                    <Trash2 size={16} />
+                  )}
+                </button>
+              )}
+            </>
           )}
         </div>
         {/* Save button for image update */}
@@ -160,7 +212,7 @@ const GroupInfoModal = ({ onClose }) => {
             </span>
             {isAdmin && (
               <button
-                className="btn btn-xs btn-circle bg-white text-primary border-none shadow hover:bg-gray-100"
+                className="btn btn-xs btn-circle bg-base-100 text-primary border-none shadow hover:bg-base-200"
                 onClick={() => setEditName(true)}
                 title="Edit group name"
               >
@@ -177,7 +229,7 @@ const GroupInfoModal = ({ onClose }) => {
 
       {/* Members List */}
       <div className="px-6 py-4">
-        <h3 className="font-semibold mb-3 text-gray-700">Members</h3>
+        <h3 className="font-semibold mb-3 text-base-content">Members</h3>
         <ul className="space-y-2 mb-4 max-h-60 overflow-y-auto pr-1">
           {selectedGroup?.members?.map((member) => (
             <li
@@ -190,15 +242,15 @@ const GroupInfoModal = ({ onClose }) => {
                 className="w-9 h-9 rounded-full object-cover border mr-3"
               />
               <div className="flex-1 min-w-0">
-                <div className="font-medium truncate text-gray-900">
+                <div className="font-medium truncate text-base-content">
                   {member.fullName}
                   {selectedGroup.admin === member._id && (
-                    <span className="ml-2 text-xs bg-primary text-white rounded px-2 py-0.5">
+                    <span className="ml-2 text-xs bg-primary text-primary-content rounded px-2 py-0.5">
                       admin
                     </span>
                   )}
                 </div>
-                <div className="text-xs text-gray-500 truncate">
+                <div className="text-xs text-base-content/60 truncate">
                   {member.email}
                 </div>
               </div>
@@ -223,14 +275,31 @@ const GroupInfoModal = ({ onClose }) => {
             <UserPlus size={18} /> Add Member
           </button>
         )}
+
+        {/* Delete Group Section - Admin Only */}
+        {isAdmin && (
+          <div className="border-t border-base-300 pt-4 mt-4">
+            <h3 className="font-semibold mb-3 text-error">Danger Zone</h3>
+            <button
+              className="btn btn-error w-full flex items-center justify-center gap-2"
+              onClick={() => setShowDeleteModal(true)}
+            >
+              <Trash2 size={18} /> Delete Group
+            </button>
+            <p className="text-xs text-base-content/60 mt-2 text-center">
+              This action cannot be undone. All messages and members will be
+              permanently removed.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Add Member Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-lg w-full max-w-xs p-6 relative">
+        <div className="fixed inset-0 bg-base-300/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-base-100 rounded-xl shadow-lg w-full max-w-xs p-6 relative border border-base-300">
             <button
-              className="absolute top-3 right-3 text-gray-400 hover:text-primary"
+              className="absolute top-3 right-3 text-base-content/50 hover:text-primary"
               onClick={() => setShowAddModal(false)}
               title="Close"
             >
@@ -247,13 +316,13 @@ const GroupInfoModal = ({ onClose }) => {
                 onChange={(e) => setSearch(e.target.value)}
               />
               <Search
-                className="absolute left-2 top-2.5 text-gray-400"
+                className="absolute left-2 top-2.5 text-base-content/40"
                 size={18}
               />
             </div>
-            <ul className="max-h-48 overflow-y-auto divide-y divide-gray-100">
+            <ul className="max-h-48 overflow-y-auto divide-y divide-base-300">
               {filteredUsers.length === 0 && (
-                <li className="text-gray-400 text-sm py-2 text-center">
+                <li className="text-base-content/50 text-sm py-2 text-center">
                   No users found
                 </li>
               )}
@@ -285,6 +354,56 @@ const GroupInfoModal = ({ onClose }) => {
                 </li>
               ))}
             </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Group Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-base-300/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-base-100 rounded-xl shadow-lg w-full max-w-md p-6 relative border border-base-300">
+            <button
+              className="absolute top-3 right-3 text-base-content/50 hover:text-primary"
+              onClick={() => setShowDeleteModal(false)}
+              title="Close"
+            >
+              <X size={22} />
+            </button>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-error/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 size={32} className="text-error" />
+              </div>
+              <h3 className="text-lg font-bold mb-2">Delete Group</h3>
+              <p className="text-base-content/70 mb-6">
+                Are you sure you want to delete{" "}
+                <strong>&ldquo;{selectedGroup?.name}&rdquo;</strong>? This
+                action cannot be undone and will permanently remove all messages
+                and members.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  className="btn btn-outline flex-1"
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={isDeletingGroup}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-error flex-1"
+                  onClick={handleDeleteGroup}
+                  disabled={isDeletingGroup}
+                >
+                  {isDeletingGroup ? (
+                    <>
+                      <span className="loading loading-spinner loading-sm"></span>
+                      Deleting...
+                    </>
+                  ) : (
+                    "Delete Group"
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

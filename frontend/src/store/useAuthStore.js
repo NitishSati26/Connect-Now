@@ -21,8 +21,8 @@ export const useAuthStore = create((set, get) => ({
       set({ authUser: res.data });
 
       get().connectSocket();
-    } catch (error) {
-      console.log("Error in checkAuth:", error);
+    } catch {
+      // console.log("Error in checkAuth:", error);
       set({ authUser: null });
     } finally {
       set({ isCheckingAuth: false });
@@ -82,9 +82,9 @@ export const useAuthStore = create((set, get) => ({
       useChatStore.getState().getUsers();
 
       toast.success("Profile updated successfully");
-    } catch (error) {
-      console.log("Error in Update Profile");
-      toast.error(error.response.data.message);
+    } catch {
+      // console.log("Error in Update Profile");
+      toast.error("An error occurred while updating profile");
     } finally {
       set({ isUpdatingProfile: false });
     }
@@ -103,13 +103,41 @@ export const useAuthStore = create((set, get) => ({
     socket.connect();
     set({ socket: socket });
 
+    socket.on("connect", () => {
+      // console.log("Socket connected, subscribing to events");
+
+      // Subscribe to global group events for real-time group updates
+      import("./useGroupStore").then(({ useGroupStore }) => {
+        // console.log("Importing useGroupStore for subscription");
+        useGroupStore.getState().subscribeToGlobalGroupEvents();
+      });
+
+      // Subscribe to global message events for real-time user list updates
+      import("./useChatStore").then(({ useChatStore }) => {
+        // console.log("Importing useChatStore for subscription");
+        useChatStore.getState().subscribeToGlobalMessages();
+      });
+
+      // Join user to all their group rooms
+      // console.log("Joining user to group rooms:", authUser._id);
+      socket.emit("joinGroups", authUser._id);
+    });
+
+    socket.on("disconnect", () => {
+      // console.log("Socket disconnected");
+    });
+
+    socket.on("connect_error", () => {
+      // console.error("Socket connection error:", error);
+    });
+
     socket.on("getOnlineUsers", (userIds) => {
       set({ onlineUsers: userIds });
     });
 
     // Listen for real-time profile updates
     socket.on("profileUpdated", async (data) => {
-      console.log("Profile updated in real-time:", data);
+      // console.log("Profile updated in real-time:", data);
 
       // Update the current user's profile if it's their own update
       if (data.userId === authUser._id) {
@@ -126,19 +154,6 @@ export const useAuthStore = create((set, get) => ({
       const { useChatStore } = await import("./useChatStore");
       useChatStore.getState().updateUserProfile(data.userId, data);
     });
-
-    // Subscribe to global group events for real-time group updates
-    import("./useGroupStore").then(({ useGroupStore }) => {
-      useGroupStore.getState().subscribeToGlobalGroupEvents();
-    });
-
-    // Subscribe to global message events for real-time user list updates
-    import("./useChatStore").then(({ useChatStore }) => {
-      useChatStore.getState().subscribeToGlobalMessages();
-    });
-
-    // Join user to all their group rooms
-    socket.emit("joinGroups", authUser._id);
   },
 
   disconnectSocket: () => {

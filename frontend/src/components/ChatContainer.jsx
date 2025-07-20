@@ -9,12 +9,14 @@ import MessageSkeleton from "./skeletons/MessageSkeleton";
 import { useAuthStore } from "../store/useAuthStore";
 import { formatDistanceToNow } from "date-fns";
 import GroupChatContainer from "./group/GroupChatContainer";
-import { Paperclip, Image, FileText, X } from "lucide-react";
+import { Paperclip, Image, FileText, X, Mic, MicOff, Send } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTypingIndicator } from "../hooks/useTypingIndicator";
 import TypingIndicator from "./TypingIndicator";
+import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
+import ImageModal from "./ImageModal";
 
-const ChatContainer = () => {
+const ChatContainer = ({ onBack }) => {
   const {
     messages,
     getMessages,
@@ -32,12 +34,20 @@ const ChatContainer = () => {
   const [filePreview, setFilePreview] = useState(null);
   const [messageText, setMessageText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
   const fileInputRef = useRef(null);
   const docInputRef = useRef(null);
 
   // Typing indicator hook
   const { typingUsers, sendTypingIndicator, sendStopTypingIndicator } =
     useTypingIndicator("private", selectedUser?._id, authUser?._id);
+
+  // Voice to text
+  const { isListening, startListening, stopListening } = useSpeechRecognition(
+    (transcript) => {
+      setMessageText((prev) => (prev ? prev + " " + transcript : transcript));
+    }
+  );
 
   // Always call hooks first, then conditionally render
   useEffect(() => {
@@ -153,7 +163,7 @@ const ChatContainer = () => {
         messageData.documentName = filePreview.name;
       }
 
-      console.log("Sending message data:", messageData);
+      // console.log("Sending message data:", messageData);
       await sendMessage(messageData);
 
       setMessageText("");
@@ -203,7 +213,7 @@ const ChatContainer = () => {
   };
 
   if (selectedGroup) {
-    return <GroupChatContainer />;
+    return <GroupChatContainer onBack={onBack} />;
   }
 
   if (isMessagesLoading) {
@@ -217,10 +227,10 @@ const ChatContainer = () => {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-auto">
-      <ChatHeader />
+    <div className="flex-1 flex flex-col h-full">
+      <ChatHeader onBack={onBack} />
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+      <div className="flex-1 overflow-y-auto p-4 space-y-2 min-h-0">
         {messages.map((message) => {
           const isCurrentUser = message.senderId === authUser._id;
 
@@ -234,7 +244,10 @@ const ChatContainer = () => {
                   <img
                     src={message.image}
                     alt="Attachment"
-                    className="w-full max-w-[280px] rounded-lg mb-3"
+                    className="w-full max-w-[280px] rounded-lg mb-3 cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() =>
+                      setSelectedImage({ url: message.image, name: "Image" })
+                    }
                   />
                 )}
                 {message.document && (
@@ -354,12 +367,14 @@ const ChatContainer = () => {
         )}
 
         <form onSubmit={handleSendMessage} className="flex items-end gap-2">
-          {/* Text input */}
+          {/* Text input with mic inside */}
           <div className="flex-1 relative">
             <input
               type="text"
               className="w-full input input-bordered rounded-lg pr-12"
-              placeholder={isSending ? "Sending..." : "Type a message..."}
+              placeholder={
+                isSending ? "Sending..." : "Type a message or use mic..."
+              }
               value={messageText}
               onChange={(e) => {
                 setMessageText(e.target.value);
@@ -380,6 +395,15 @@ const ChatContainer = () => {
               }}
               disabled={isSending}
             />
+            {/* Mic Icon Inside Input */}
+            <button
+              type="button"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-base-content/50 hover:text-base-content"
+              onClick={isListening ? stopListening : startListening}
+              title={isListening ? "Stop Recording" : "Start Recording"}
+            >
+              {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+            </button>
           </div>
 
           {/* File Upload Button with Dropdown */}
@@ -424,23 +448,20 @@ const ChatContainer = () => {
             {isSending ? (
               <span className="loading loading-spinner loading-sm"></span>
             ) : (
-              <svg
-                className="size-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-                />
-              </svg>
+              <Send size={22} />
             )}
           </button>
         </form>
       </div>
+
+      {/* Image Modal */}
+      {selectedImage && (
+        <ImageModal
+          imageUrl={selectedImage.url}
+          imageName={selectedImage.name}
+          onClose={() => setSelectedImage(null)}
+        />
+      )}
     </div>
   );
 };

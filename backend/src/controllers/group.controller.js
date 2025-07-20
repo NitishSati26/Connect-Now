@@ -11,6 +11,13 @@ export const createGroup = async (req, res) => {
     const { name, members, groupPic } = req.body;
     const admin = req.user._id;
 
+    // console.log("Creating group:", {
+    //   name,
+    //   members,
+    //   admin,
+    //   hasGroupPic: !!groupPic,
+    // });
+
     if (!name || !Array.isArray(members) || members.length === 0) {
       return res.status(400).json({ message: "Name and members are required" });
     }
@@ -29,12 +36,15 @@ export const createGroup = async (req, res) => {
     const group = await Group.create(groupData);
     await group.populate("members", "-password");
 
+    // console.log("Group created successfully:", group._id);
+
     // Add all members to the group socket room
     const { getReceiverSocketId } = await import("../lib/socket.js");
     group.members.forEach((member) => {
       const userSocketId = getReceiverSocketId(member._id);
       if (userSocketId) {
         io.to(userSocketId).socketsJoin(group._id.toString());
+        // console.log(`Added member ${member._id} to group room ${group._id}`);
       }
     });
 
@@ -42,16 +52,35 @@ export const createGroup = async (req, res) => {
     group.members.forEach((member) => {
       const userSocketId = getReceiverSocketId(member._id);
       if (userSocketId) {
-        io.to(userSocketId).emit("groupCreated", {
-          group,
+        // console.log(
+        //   `Emitting groupCreated to user ${member._id} (socket: ${userSocketId})`
+        // );
+        const eventData = {
+          group: {
+            _id: group._id,
+            name: group.name,
+            admin: group.admin,
+            members: group.members,
+            groupPic: group.groupPic,
+            createdAt: group.createdAt,
+            updatedAt: group.updatedAt,
+            unreadCount: 0, // New groups start with 0 unread messages
+          },
           addedBy: admin,
-        });
+        };
+        // console.log("Event data being sent:", eventData);
+        io.to(userSocketId).emit("groupCreated", eventData);
+      } else {
+        console.log(
+          `User ${member._id} not connected, skipping groupCreated emission`
+        );
       }
     });
 
+    // console.log("Group creation completed, sending response");
     res.status(201).json(group);
   } catch (error) {
-    console.error("Error in createGroup:", error.message);
+    // console.error("Error in createGroup:", error.message);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
@@ -75,8 +104,10 @@ export const getUserGroups = async (req, res) => {
         }).sort({ createdAt: -1 });
 
         // Get unread message count for this user in this group
+        // Exclude messages sent by the user themselves
         const unreadCount = await GroupMessage.countDocuments({
           groupId: group._id,
+          senderId: { $ne: userId }, // Exclude messages sent by this user
           "readBy.userId": { $ne: userId },
         });
 
@@ -89,10 +120,16 @@ export const getUserGroups = async (req, res) => {
     );
 
     // Sort groups by latest message time (most recent first)
+    // But prioritize newly created groups (no messages) at the top
     const sortedGroups = groupsWithLatestMessage.sort((a, b) => {
-      if (!a.latestMessageTime && !b.latestMessageTime) return 0;
-      if (!a.latestMessageTime) return 1;
-      if (!b.latestMessageTime) return -1;
+      // If both groups have no messages, sort by creation date (newest first)
+      if (!a.latestMessageTime && !b.latestMessageTime) {
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      }
+      // If only one has no messages, put it at the top
+      if (!a.latestMessageTime) return -1;
+      if (!b.latestMessageTime) return 1;
+      // If both have messages, sort by latest message time
       return new Date(b.latestMessageTime) - new Date(a.latestMessageTime);
     });
 
@@ -287,10 +324,10 @@ export const updateGroupInfo = async (req, res) => {
 
     if (name) group.name = name;
     if (groupPic) {
-      console.log("Received groupPic (length):", groupPic.length);
+      // console.log("Received groupPic (length):", groupPic.length);
       const uploadResponse = await cloudinary.uploader.upload(groupPic);
       group.groupPic = uploadResponse.secure_url;
-      console.log("New groupPic URL:", group.groupPic);
+      // console.log("New groupPic URL:", group.groupPic);
     }
     await group.save();
     await group.populate("members", "-password");
@@ -304,6 +341,55 @@ export const updateGroupInfo = async (req, res) => {
     res.status(200).json(group);
   } catch (error) {
     console.error("Error in updateGroupInfo:", error.message);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// Delete Group Photo
+export const deleteGroupPhoto = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user._id;
+
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+    if (!group.admin.equals(userId)) {
+      return res
+        .status(403)
+        .json({ message: "Only admin can delete group photo" });
+    }
+
+    if (!group.groupPic) {
+      return res.status(400).json({ message: "Group has no photo to delete" });
+    }
+
+    // Delete from Cloudinary if it's a Cloudinary URL
+    if (group.groupPic.includes("cloudinary.com")) {
+      try {
+        const publicId = group.groupPic.split("/").pop().split(".")[0];
+        await cloudinary.uploader.destroy(publicId);
+      } catch (cloudinaryError) {
+        console.error("Error deleting from Cloudinary:", cloudinaryError);
+        // Continue even if Cloudinary deletion fails
+      }
+    }
+
+    // Remove group photo from database
+    group.groupPic = null;
+    await group.save();
+    await group.populate("members", "-password");
+
+    // Emit real-time group info update to all group members
+    io.to(groupId).emit("groupInfoUpdated", {
+      groupId,
+      group,
+    });
+
+    res.status(200).json(group);
+  } catch (error) {
+    console.error("Error in deleteGroupPhoto:", error.message);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
@@ -340,6 +426,66 @@ export const markGroupMessagesAsRead = async (req, res) => {
     res.status(200).json({ message: "Group messages marked as read" });
   } catch (error) {
     console.error("Error in markGroupMessagesAsRead:", error.message);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// Delete Group (admin only)
+export const deleteGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const adminId = req.user._id;
+
+    // console.log("Deleting group:", { groupId, adminId });
+
+    const group = await Group.findById(groupId);
+
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    // Check if user is the admin of the group
+    if (!group.admin.equals(adminId)) {
+      return res
+        .status(403)
+        .json({ message: "Only admin can delete the group" });
+    }
+
+    // Get all members before deleting for socket notifications
+    const members = [...group.members];
+
+    // Delete all messages in the group
+    await GroupMessage.deleteMany({ groupId });
+
+    // Delete the group
+    await Group.findByIdAndDelete(groupId);
+
+    // console.log("Group deleted successfully:", groupId);
+
+    // Emit real-time group deletion to all members
+    const { getReceiverSocketId } = await import("../lib/socket.js");
+    members.forEach((memberId) => {
+      const userSocketId = getReceiverSocketId(memberId);
+      if (userSocketId) {
+        // console.log(
+        //   `Emitting groupDeleted to user ${memberId} (socket: ${userSocketId})`
+        // );
+        io.to(userSocketId).emit("groupDeleted", {
+          groupId,
+          groupName: group.name,
+          deletedBy: adminId,
+        });
+      } else {
+        console.log(
+          `User ${memberId} not connected, skipping groupDeleted emission`
+        );
+      }
+    });
+
+    // console.log("Group deletion completed, sending response");
+    res.status(200).json({ message: "Group deleted successfully" });
+  } catch (error) {
+    console.error("Error in deleteGroup:", error.message);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };

@@ -22,7 +22,7 @@ export function getReceiverSocketId(userId) {
 
 // Socket.IO Connection
 io.on("connection", (socket) => {
-  console.log("✅ A user connected:", socket.id);
+  // console.log("✅ A user connected:", socket.id);
 
   const userId = socket.handshake.query.userId;
   if (userId) {
@@ -43,7 +43,7 @@ io.on("connection", (socket) => {
           groups.forEach((group) => {
             socket.join(group._id.toString()); // join each group room
           });
-          console.log(`User ${userId} joined ${groups.length} groups`);
+          // console.log(`User ${userId} joined ${groups.length} groups`);
         })
         .catch((error) => {
           console.error("Error joining groups:", error);
@@ -85,7 +85,7 @@ io.on("connection", (socket) => {
   // 🔴 Disconnect
   // ==========================
   socket.on("disconnect", () => {
-    console.log("❌ User disconnected:", socket.id);
+    // console.log("❌ User disconnected:", socket.id);
     delete userSocketMap[userId];
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
   });

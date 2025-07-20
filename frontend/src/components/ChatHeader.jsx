@@ -1,9 +1,9 @@
-import { X } from "lucide-react";
+import { X, ArrowLeft } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 import { useGroupStore } from "../store/useGroupStore";
 
-const ChatHeader = () => {
+const ChatHeader = ({ onBack }) => {
   const { selectedUser, setSelectedUser } = useChatStore();
   const { onlineUsers } = useAuthStore();
   const { setSelectedGroup } = useGroupStore();
@@ -22,7 +22,7 @@ const ChatHeader = () => {
                   className="object-cover"
                 />
               ) : (
-                <div className="w-full h-full bg-zinc-600 text-white rounded-full flex items-center justify-center text-lg font-semibold">
+                <div className="w-full h-full bg-base-300 text-base-content rounded-full flex items-center justify-center text-lg font-semibold">
                   {selectedUser?.fullName?.[0]}
                 </div>
               )}
@@ -38,18 +38,32 @@ const ChatHeader = () => {
           </div>
         </div>
 
-        {/* Close button */}
-        <button
-          className="btn btn-circle btn-ghost btn-sm"
-          onClick={() => {
-            setSelectedUser(null);
-            // Also clear selected group to be consistent with sidebar behavior
-            setSelectedGroup(null);
-          }}
-          title="Close Chat"
-        >
-          <X size={20} />
-        </button>
+        {/* Back button for mobile, Close button for desktop */}
+        <div className="flex items-center gap-2">
+          {/* Back button - only show on mobile */}
+          {onBack && (
+            <button
+              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-base-200 transition-colors lg:hidden"
+              onClick={onBack}
+              title="Back to Chats"
+            >
+              <ArrowLeft size={18} />
+            </button>
+          )}
+
+          {/* Close button - only show on desktop */}
+          <button
+            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-base-200 transition-colors hidden lg:block p-0 border-0 relative"
+            onClick={() => {
+              setSelectedUser(null);
+              // Also clear selected group to be consistent with sidebar behavior
+              setSelectedGroup(null);
+            }}
+            title="Close Chat"
+          >
+            <X size={18} className="absolute inset-0 m-auto" />
+          </button>
+        </div>
       </div>
     </div>
   );

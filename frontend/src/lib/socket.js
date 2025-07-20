@@ -12,13 +12,13 @@ export const useSocket = () => {
         },
       });
 
-      socket.on("connect", () => {
-        console.log("Connected to socket server");
-      });
+      // socket.on("connect", () => {
+      //   console.log("Connected to socket server");
+      // });
 
-      socket.on("disconnect", () => {
-        console.log("Disconnected from socket server");
-      });
+      // socket.on("disconnect", () => {
+      //   console.log("Disconnected from socket server");
+      // });
     }
 
     return () => {

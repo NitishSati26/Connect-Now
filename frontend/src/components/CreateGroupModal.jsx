@@ -73,11 +73,11 @@ const CreateGroupModal = ({ onClose }) => {
     );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-auto overflow-hidden relative h-[600px] flex flex-col">
+    <div className="fixed inset-0 bg-base-300/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-base-100 rounded-2xl shadow-xl w-full max-w-lg mx-auto overflow-hidden relative h-[600px] flex flex-col border border-base-300">
         {/* Floating close icon */}
         <button
-          className="absolute top-4 right-4 text-gray-400 hover:text-primary z-10"
+          className="absolute top-4 right-4 text-base-content/50 hover:text-primary z-10"
           onClick={onClose}
           title="Close"
           disabled={isCreating}
@@ -95,12 +95,12 @@ const CreateGroupModal = ({ onClose }) => {
                 className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg"
               />
             ) : (
-              <div className="w-24 h-24 bg-white/20 rounded-full border-4 border-white shadow-lg flex items-center justify-center">
-                <Users className="size-12 text-white" />
+              <div className="w-24 h-24 bg-base-100/20 rounded-full border-4 border-base-100 shadow-lg flex items-center justify-center">
+                <Users className="size-12 text-base-100" />
               </div>
             )}
             <div className="absolute bottom-2 right-2 flex gap-1">
-              <label className="bg-white rounded-full p-1 shadow cursor-pointer hover:bg-gray-100 transition">
+              <label className="bg-base-100 rounded-full p-1 shadow cursor-pointer hover:bg-base-200 transition">
                 <Image size={18} className="text-primary" />
                 <input
                   ref={fileInputRef}
@@ -114,7 +114,7 @@ const CreateGroupModal = ({ onClose }) => {
               {groupPic && (
                 <button
                   onClick={handleRemovePic}
-                  className="bg-white rounded-full p-1 shadow cursor-pointer hover:bg-red-100 hover:text-red-600 transition"
+                  className="bg-base-100 rounded-full p-1 shadow cursor-pointer hover:bg-error/10 hover:text-error transition"
                   disabled={isCreating}
                   title="Remove image"
                 >
@@ -126,7 +126,7 @@ const CreateGroupModal = ({ onClose }) => {
 
           <div className="flex gap-2 items-center mt-2">
             <input
-              className="input input-bordered text-lg font-semibold bg-white/90 border-white"
+              className="input input-bordered text-lg font-semibold bg-base-100/90 border-base-100"
               placeholder="Enter group name..."
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
@@ -144,7 +144,7 @@ const CreateGroupModal = ({ onClose }) => {
         <div className="px-6 py-4 flex-1 overflow-y-auto">
           {/* Member Selection */}
           <div>
-            <h3 className="font-semibold mb-3 text-gray-700">
+            <h3 className="font-semibold mb-3 text-base-content">
               Add Members ({selectedMembers.length} selected)
             </h3>
 
@@ -158,17 +158,17 @@ const CreateGroupModal = ({ onClose }) => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 disabled={isCreating}
               />
-              <Users className="size-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Users className="size-4 text-base-content/40 absolute left-3 top-1/2 -translate-y-1/2" />
             </div>
 
             {/* User List */}
-            <div className="border border-gray-200 rounded-lg max-h-60 overflow-y-auto">
+            <div className="border border-base-300 rounded-lg max-h-60 overflow-y-auto">
               {availableUsers.length === 0 ? (
-                <div className="p-4 text-center text-gray-400 text-sm">
+                <div className="p-4 text-center text-base-content/50 text-sm">
                   {searchTerm ? "No users found" : "No users available"}
                 </div>
               ) : (
-                <ul className="divide-y divide-gray-100">
+                <ul className="divide-y divide-base-300">
                   {availableUsers.map((user) => {
                     const isSelected = selectedMembers.includes(user._id);
                     return (
@@ -189,10 +189,10 @@ const CreateGroupModal = ({ onClose }) => {
                           )}
                         </div>
                         <div className="flex-1 ml-3">
-                          <div className="font-medium text-sm text-gray-900">
+                          <div className="font-medium text-sm text-base-content">
                             {user.fullName}
                           </div>
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-base-content/60">
                             {isSelected ? "Selected" : "Click to select"}
                           </div>
                         </div>
@@ -225,7 +225,7 @@ const CreateGroupModal = ({ onClose }) => {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+        <div className="px-6 py-4 border-t border-base-300 bg-base-200 flex-shrink-0">
           <div className="flex gap-3">
             <button
               onClick={onClose}

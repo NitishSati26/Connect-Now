@@ -82,19 +82,19 @@ export const useChatStore = create((set, get) => ({
   },
 
   updateUserUnreadCount: (senderId, increment = 1) => {
-    console.log(
-      "Updating unread count for:",
-      senderId,
-      "increment:",
-      increment
-    );
+    // console.log(
+    //   "Updating unread count for:",
+    //   senderId,
+    //   "increment:",
+    //   increment
+    // );
     set((state) => {
       const updatedUsers = state.users.map((user) => {
         if (user._id === senderId) {
           const newCount = (user.unreadCount || 0) + increment;
-          console.log(
-            `User ${user.fullName}: ${user.unreadCount || 0} -> ${newCount}`
-          );
+          // console.log(
+          //   `User ${user.fullName}: ${user.unreadCount || 0} -> ${newCount}`
+          // );
           return { ...user, unreadCount: newCount };
         }
         return user;
@@ -165,7 +165,7 @@ export const useChatStore = create((set, get) => ({
     if (!socket) return;
 
     socket.on("newMessage", (newMessage) => {
-      console.log("Global newMessage received:", newMessage);
+      // console.log("Global newMessage received:", newMessage);
       const currentState = get();
       const { selectedUser } = currentState;
       const authUser = useAuthStore.getState().authUser;
@@ -175,15 +175,15 @@ export const useChatStore = create((set, get) => ({
       const isCurrentlyViewing =
         selectedUser && selectedUser._id === newMessage.senderId;
 
-      console.log("Message conditions:", {
-        isFromCurrentUser,
-        isToCurrentUser,
-        isCurrentlyViewing,
-        senderId: newMessage.senderId,
-        receiverId: newMessage.receiverId,
-        authUserId: authUser._id,
-        selectedUserId: selectedUser?._id,
-      });
+      // console.log("Message conditions:", {
+      //   isFromCurrentUser,
+      //   isToCurrentUser,
+      //   isCurrentlyViewing,
+      //   senderId: newMessage.senderId,
+      //   receiverId: newMessage.receiverId,
+      //   authUserId: authUser._id,
+      //   selectedUserId: selectedUser?._id,
+      // });
 
       // Move sender to top of users list when receiving any message
       get().updateUserOrder(newMessage.senderId);
@@ -192,7 +192,7 @@ export const useChatStore = create((set, get) => ({
       // 1. Message is TO current user (not from current user)
       // 2. Not currently viewing this conversation
       if (isToCurrentUser && !isFromCurrentUser && !isCurrentlyViewing) {
-        console.log("Incrementing unread count for:", newMessage.senderId);
+        // console.log("Incrementing unread count for:", newMessage.senderId);
         get().updateUserUnreadCount(newMessage.senderId);
       }
     });

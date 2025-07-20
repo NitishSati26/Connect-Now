@@ -63,7 +63,7 @@ const MessageInput = () => {
             <img
               src={imagePreview}
               alt="Preview"
-              className="w-20 h-20 object-cover rounded-lg border border-zinc-700"
+              className="w-20 h-20 object-cover rounded-lg border border-base-300"
             />
             <button
               onClick={removeImage}
@@ -91,7 +91,7 @@ const MessageInput = () => {
             {/* Mic Icon Inside Input */}
             <button
               type="button"
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-black"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-base-content/50 hover:text-base-content"
               onClick={isListening ? stopListening : startListening}
               title={isListening ? "Stop Recording" : "Start Recording"}
             >
@@ -111,7 +111,7 @@ const MessageInput = () => {
           <button
             type="button"
             className={`hidden sm:flex btn btn-circle
-                     ${imagePreview ? "text-emerald-500" : "text-zinc-400"}`}
+                     ${imagePreview ? "text-success" : "text-base-content/40"}`}
             onClick={() => fileInputRef.current?.click()}
           >
             <Image size={20} />
