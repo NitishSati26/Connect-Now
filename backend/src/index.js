@@ -9,6 +9,7 @@ import authRoutes from "./routes/auth.route.js";
 import messageRoutes from "./routes/message.route.js";
 import groupRoutes from "./routes/group.route.js";
 import documentRoutes from "./routes/document.route.js";
+import contactRoutes from "./routes/contact.route.js";
 import { app, server } from "./lib/socket.js";
 
 // Load environment variables from .env file
@@ -27,6 +28,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/groups", groupRoutes);
 app.use("/api", documentRoutes);
+app.use("/api/contact", contactRoutes);
 
 const PORT = process.env.PORT;
 

@@ -1,7 +1,7 @@
-import React from "react";
 import { THEMES } from "../constants";
 import { useThemeStore } from "../store/useThemeStore";
-import { Send } from "lucide-react";
+import { Send, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const PREVIEW_MESSAGES = [
   { id: 1, content: "Hey! How's it going?", isSent: false },
@@ -14,8 +14,16 @@ const PREVIEW_MESSAGES = [
 
 const Settings = () => {
   const { theme, setTheme } = useThemeStore();
+  const navigate = useNavigate();
   return (
     <div className="h-screen container mx-auto px-4 pt-20 max-w-5xl">
+      <button
+        className="flex items-center gap-2 mb-6 text-base-content/70 hover:text-primary transition-colors"
+        onClick={() => navigate("/app")}
+      >
+        <ArrowLeft className="w-5 h-5" />
+        <span>Back</span>
+      </button>
       <div className="space-y-6">
         <div className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold">Theme</h2>

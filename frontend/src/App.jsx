@@ -1,32 +1,25 @@
 import { useEffect } from "react";
 import Navbar from "./components/Navbar";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Home from "./pages/Home";
 import SignUp from "./pages/SignUp";
 import Login from "./pages/Login";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
+import ChatDashboard from "./pages/ChatDashboard";
 import { useAuthStore } from "./store/useAuthStore";
 import { Loader } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 import { useThemeStore } from "./store/useThemeStore";
 
 const App = () => {
-  const {
-    authUser,
-    checkAuth,
-    isCheckingAuth,
-    // onlineUsers
-  } = useAuthStore();
+  const { authUser, checkAuth, isCheckingAuth } = useAuthStore();
   const { theme } = useThemeStore();
-
-  // console.log({ onlineUsers });
+  const location = useLocation();
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
-
-  // console.log({ authUser });
 
   if (isCheckingAuth && !authUser)
     return (
@@ -35,22 +28,25 @@ const App = () => {
       </div>
     );
 
+  // Show home variant if on / and not authenticated
+  const isHomeVariant = location.pathname === "/" && !authUser;
+
   return (
     <div data-theme={theme}>
-      <Navbar />
-
+      <Navbar variant={isHomeVariant ? "home" : undefined} />
       <Routes>
+        <Route path="/" element={<Home />} />
         <Route
-          path="/"
-          element={authUser ? <Home /> : <Navigate to="/login" />}
+          path="/app"
+          element={authUser ? <ChatDashboard /> : <Navigate to="/login" />}
         />
         <Route
           path="/signup"
-          element={!authUser ? <SignUp /> : <Navigate to="/" />}
+          element={!authUser ? <SignUp /> : <Navigate to="/app" />}
         />
         <Route
           path="/login"
-          element={!authUser ? <Login /> : <Navigate to="/" />}
+          element={!authUser ? <Login /> : <Navigate to="/app" />}
         />
         <Route path="/settings" element={<Settings />} />
         <Route
@@ -58,7 +54,6 @@ const App = () => {
           element={authUser ? <Profile /> : <Navigate to="/login" />}
         />
       </Routes>
-
       <Toaster position="top-right" reverseOrder={true} />
     </div>
   );
